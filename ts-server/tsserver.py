@@ -22,10 +22,11 @@ def respond(err=None, res=None, zd_error=False):
     bodyJson = {"zd_error": zd_error}
     return {
         'statusCode': '400' if err else '200',
-        'body': { 'error': str(err) } if err else bodyJson,
+        'body': json.dumps({ 'error': str(err) } if err else bodyJson),
         'headers': {
-            'Content-Type': 'application/json; charset=utf-8',
+            'Content-Type': 'application/json',
         },
+        "isBase64Encoded": False,
     }
 
 def updateDatabase(data, zendesk_ticket_id=None):
@@ -151,7 +152,6 @@ def lambda_handler(event, context):
             print("Error was: {}".format(str(err)))
             ticket_id = None
             zd_error = True
-            raise err
 
         try:
             db_response = updateDatabase(data, ticket_id)
