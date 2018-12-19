@@ -1,2 +1,3 @@
 .ipynb*
 python_packages
+*.zip
