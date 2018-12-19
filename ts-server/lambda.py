@@ -4,23 +4,52 @@
 import json, sys, ast, os
 sys.path.insert(0, "python-packages")
 
+import boto3
+
 from zenpy import Zenpy
 from zenpy.lib.api_objects import Ticket
 from zenpy.lib.api_objects import User
 from zenpy.lib.api_objects import Comment
 
-def updateDatabase(data, zendesk_ticket_id=None):
-    
-    row = {
-        'session_id': data["session_id"],
-        'answers': data["answers"],
-        'resolved': data["resolved"],
-        'jira_key': data["jira_key"],
-        'zendesk_ticket_id': zendesk_ticket_id
+print('Loading function')
+dynamo = boto3.client('dynamodb')
+
+operations = ['DELETE','GET','POST','PUT']
+
+def respond(err=None, res=None, zd_error=False):
+    bodyJson = {zd_error: zd_error}
+    return {
+        'statusCode': '400' if err else '200',
+        'body': err.message if err else bodyJson,
+        'headers': {
+            'Content-Type': 'application/json; charset=utf-8',
+        },
     }
 
-    # @todo implement code to write to database here
-    # it should overwrite any existing data for the given session ID
+def updateDatabase(data, zendesk_ticket_id=None):
+    response = dynamo.put_item(
+        TableName='KESTroubleShooter',
+        Item={
+            'SessionID': {
+                'S':  data["session_id"],
+            },
+            'Answers': {
+                'S':  data["answers"],
+            },
+            'Resolved': {
+                'S':  data["resolved"],
+            },
+            'JiraKey': {
+                'S':  data["jira_key"],
+            },
+            'ZendeskTicketID': {
+                'S':  zendesk_ticket_id,
+            },
+        }
+    )
+
+    print(response)
+    return response
 
 def createTicket(data):
     
@@ -98,12 +127,29 @@ def getKitFromAnswers(answers):
     else:
         raise BaseException("Kit not found in answers data. Check to make sure the first response contains a string with the kit name")
 
-def handler(data):
-    
-    # write to the database
-    updateDatabase(data)
+def lambda_handler(event, context):
 
-    # create ticket
-    if data["email"] is not None: 
-        ticket_id = createTicket(data)
-        updateDatabase(data, ticket_id)
+    print("Received event: " + json.dumps(event, indent=2))
+
+    operation = event['httpMethod']
+    if operation in operations:
+        data = json.loads(event['body'])
+        ticket_id = None
+        zd_error = False
+
+        try:
+            # create ticket
+            if data["email"] is not None: 
+                ticket_id = createTicket(data)
+                # end if
+        except Exception as err:
+            print("error on creation of Zendesk ticket")
+            print("Error was of type: {}".format(type(err)))
+            ticket_id = None
+            zd_error = True
+
+        db_response = updateDatabase(data, ticket_id)
+
+        return respond(None, db_response, zd_error)
+    else: 
+        return respond(ValueError('Unsupported method "{}"'.format(operation)))
