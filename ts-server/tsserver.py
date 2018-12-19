@@ -19,10 +19,10 @@ table = dynamo.Table("KESTroubleShooter")
 operations = ['GET','POST','PUT']
 
 def respond(err=None, res=None, zd_error=False):
-    bodyJson = {zd_error: zd_error}
+    bodyJson = {"zd_error": zd_error}
     return {
         'statusCode': '400' if err else '200',
-        'body': err.message if err else bodyJson,
+        'body': { 'error': str(err) } if err else bodyJson,
         'headers': {
             'Content-Type': 'application/json; charset=utf-8',
         },
@@ -33,7 +33,7 @@ def updateDatabase(data, zendesk_ticket_id=None):
         'SessionID': data["session_id"],
         'Answers': data["answers"],
         'Resolved': True if data["resolved"] is not None else False,
-        'Updated' : datetime.now()
+        'Updated' : str(datetime.now()),
     }
     # Add conditional items
     if data["jira_key"] is not None:
@@ -41,7 +41,7 @@ def updateDatabase(data, zendesk_ticket_id=None):
     if zendesk_ticket_id is not None:
         item["ZendeskTicketID"] = zendesk_ticket_id
 
-    print("Item will be: " + json.dumps(item, indent=2))
+    print("Item will be: " + json.dumps(item))
 
     try:
         response = table.put_item(Item=item)
@@ -87,7 +87,7 @@ def createTicket(data):
     note += "<h3>Customer's Answers</h3>"
     note += "<ul>"
     for answer in data["answers"]:
-        note += "<li>%s: %s</li>" % (answer["question"], answer["answer"])
+        note += "<li>%s: %s</li>" %(answer["question"], "None Given" if "answer" not in answer else answer["answer"])
     note += "</ul>"
 
     # Create Ticket in Zendesk
@@ -130,12 +130,12 @@ def getKitFromAnswers(answers):
 
 def lambda_handler(event, context):
 
-    print("Received event: " + json.dumps(event, indent=2))
+    print("Received event: " + json.dumps(event))
 
     operation = event['httpMethod']
     if operation in operations:
         data = json.loads(event['body'])
-        print("Received data: " + json.dumps(data, indent=2))
+        print("Received data: " + json.dumps(data))
         ticket_id = None
         zd_error = False
 
@@ -148,12 +148,16 @@ def lambda_handler(event, context):
         except Exception as err:
             print("error on creation of Zendesk ticket")
             print("Error was of type: {}".format(type(err)))
+            print("Error was: {}".format(str(err)))
             ticket_id = None
             zd_error = True
+            raise err
 
         try:
             db_response = updateDatabase(data, ticket_id)
-        except:
+        except Exception as dberr:
+            print("error on save to dynamo")
+            print("Error was of type: {}".format(type(dberr)))
             return respond(Exception('Seems the db is not impressed'))
 
         return respond(None, db_response, zd_error)

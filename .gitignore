@@ -1,3 +1,6 @@
 .ipynb*
 python_packages
 *.zip
+test_*
+__pycache__
+.vscode
