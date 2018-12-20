@@ -17,14 +17,20 @@ dynamo = boto3.resource('dynamodb')
 table = dynamo.Table("KESTroubleShooter")
 
 operations = ['POST']
-checkParamsList = ['session_id', 'jira_key', 'email', 'answers', 'resolved']
+checkParamsList = ['session_id', 'email', 'answers', 'resolved']
 
 def checkBodyParams(event):
     if 'body' not in event or not event['body']:
         raise Exception("Bad Request: Request must contain a body")
-    bodyParams = event['body']
+    bodyParams = json.dumps(event['body'])
     if not all(param in bodyParams for param in checkParamsList):
         raise Exception("Bad Request: Body should contain: {}".format(checkParamsList))
+
+def sanatiseAnswers(answerSet):
+    cleanAnswerSet = []
+    for answer in answerSet:
+        cleanAnswerSet.append(dict((k, v) for k, v in answer.items() if v))
+    return cleanAnswerSet
 
 def respond(err=None, res=None, zd_error=False):
     bodyJson = {"zd_error": zd_error}
@@ -33,6 +39,7 @@ def respond(err=None, res=None, zd_error=False):
         'body': json.dumps({ 'message': str(err) } if err else bodyJson),
         'headers': {
             'Content-Type': 'application/json',
+            "Access-Control-Allow-Origin": "*",
         },
         "isBase64Encoded": False,
     }
@@ -40,12 +47,12 @@ def respond(err=None, res=None, zd_error=False):
 def updateDatabase(data, zendesk_ticket_id=None):
     item = {
         'SessionID': data["session_id"],
-        'Answers': data["answers"],
-        'Resolved': True if data["resolved"] is not None else False,
+        'Answers': sanatiseAnswers(data["answers"]),
+        'Resolved': True if data["resolved"] else False,
         'Updated' : str(datetime.now()),
     }
     # Add conditional items
-    if data["jira_key"] is not None:
+    if "jira_key" in data and data["jira_key"] is not None:
         item["JiraKey"] = data["jira_key"]
     if zendesk_ticket_id is not None:
         item["ZendeskTicketID"] = zendesk_ticket_id
@@ -80,7 +87,6 @@ def createTicket(data):
     if "diagnosis" not in terminal:
         raise BaseException("data['answers'] object does not contain a well-formed terminal node")
     
-    
     # @TODO 
     # Associate with the right product in ZenDesk
     # kit = getKitFromAnswers(data["answers"])
@@ -89,7 +95,7 @@ def createTicket(data):
     note = "This customer had an unresolved issue. They need your help!"
     note += "<h3>Summary</h3>"
     note += "<ul>"
-    note += "<li><b>Diagnosis</b>: %s (Jira Issue <a href='https://kanocomputing.atlassian.net/browse/%s'>%s</a>)</li>" % (terminal["diagnosis"],terminal["jira_key"],terminal["jira_key"])
+    note += "<li><b>Diagnosis</b>: %s (Jira Issue %s)</li>" % (terminal["diagnosis"],"None Linked" if "jira_key" not in terminal else "<a href='https://kanocomputing.atlassian.net/browse/{}'>{}</a>".format(terminal["jira_key"],terminal["jira_key"]))
     note += "<li><b>Agent Solution</b>: %s</li>" % (terminal["agent_solution"])
     note += "<li><b>Solution Attempted By Customer (Unsuccessfully)</b>: %s</li>" % (terminal["customer_solution"])
     note += "</ul>"
@@ -107,7 +113,7 @@ def createTicket(data):
         comment = Comment(html_body=note, public=False)
     )
 
-    # audit = zenpy_client.tickets.create(ticket)
+    audit = zenpy_client.tickets.create(ticket)
     
     # @TODO
     # Link with Jira Issue 
@@ -116,27 +122,43 @@ def createTicket(data):
     # @TODO
     # Specify the product
 
-    # return audit.ticket.id
-    return "newticket"
-
+    return audit.ticket.id
 
 def getKitFromAnswers(answers):
     kit = answers[0]["answer"]
     if kit=="Computer Kit Touch":
-        return "Computer Kit Touch"
+        return {
+            "name": "Computer Kit Touch",
+            "field": "kano_computer_kit_touch"
+        }
     elif kit=="Computer Kit Complete":
-        return "Computer Kit Complete"
+        return {
+            "name": "Computer Kit Complete",
+            "field": "kano_computer_kit_complete"
+        }
     elif kit=="Computer Kit":
-        return "Computer Kit"
+        return {
+            "name": "Computer Kit",
+            "field": "kano_computer_kit"
+        }
     elif kit=="Harry Potter Kano Coding Kit":
-        return "Harry Potter Kano Coding Kit"
+        return {
+            "name": "Harry Potter Kano Coding Kit",
+            "field": "kano_harry_potter_coding_kit"
+        }
     elif kit=="Motion Sensor Kit":
-        return "Motion Sensor Kit"
+        return {
+            "name": "Motion Sensor Kit",
+            "field": "kano_motion_sensor"
+        }
     elif kit=="Pixel Kit":
-        return "Pixel Kit"
+        return {
+            "name": "Pixel Kit",
+            "field": "kano_pixel_kit"
+        }
     else:
         raise BaseException("Kit not found in answers data. Check to make sure the first response contains a string with the kit name")
-
+        
 def lambda_handler(event, context):
 
     print("Received event: " + json.dumps(event))
@@ -155,7 +177,7 @@ def lambda_handler(event, context):
 
         try:
             # create ticket
-            if data["email"] is not None: 
+            if data["email"]:
                 ticket_id = createTicket(data)
                 print("Ticket id is {}".format(ticket_id))
                 # end if
