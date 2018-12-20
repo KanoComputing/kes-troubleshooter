@@ -16,13 +16,21 @@ print('Loading function')
 dynamo = boto3.resource('dynamodb')
 table = dynamo.Table("KESTroubleShooter")
 
-operations = ['GET','POST','PUT']
+operations = ['POST']
+checkParamsList = ['session_id', 'jira_key', 'email', 'answers', 'resolved']
+
+def checkBodyParams(event):
+    if 'body' not in event or not event['body']:
+        raise Exception("Bad Request: Request must contain a body")
+    bodyParams = event['body']
+    if not all(param in bodyParams for param in checkParamsList):
+        raise Exception("Bad Request: Body should contain: {}".format(checkParamsList))
 
 def respond(err=None, res=None, zd_error=False):
     bodyJson = {"zd_error": zd_error}
     return {
         'statusCode': '400' if err else '200',
-        'body': json.dumps({ 'error': str(err) } if err else bodyJson),
+        'body': json.dumps({ 'message': str(err) } if err else bodyJson),
         'headers': {
             'Content-Type': 'application/json',
         },
@@ -135,6 +143,11 @@ def lambda_handler(event, context):
 
     operation = event['httpMethod']
     if operation in operations:
+        try: 
+            checkBodyParams(event)
+        except Exception as perr:
+            return respond(perr)
+
         data = json.loads(event['body'])
         print("Received data: " + json.dumps(data))
         ticket_id = None

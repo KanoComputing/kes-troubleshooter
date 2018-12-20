@@ -7,7 +7,7 @@ event = {
   "body": "{\"session_id\":\"dksnfsfsdfiesf\",\"email\":\"brandonscottjackson@gmail.com\",\"answers\":[{\"question\":\"Which Kano kit are you having trouble with?\",\"type\":\"question\",\"options\":{\"Computer Kit Touch\":1,\"Harry Potter Kano Coding Kit\":31,\"Motion Sensor Kit\":56},\"answer\":\"Harry Potter Kano Coding Kit\"},{\"question\":\" Have you been able to open the Kano App successfully?\",\"type\":\"question\",\"options\":{\"Yes\":32,\"No\":49},\"answer\":\"Yes\"},{\"question\":\" Have you been able to connect your Wand to the App?\",\"type\":\"question\",\"options\":{\"Yes\":33,\"No\":38},\"answer\":\"Yes\"},{\"question\":\" When you open up a challenge on the Play tab, do you see a colorful world on the right side of your screen?\",\"type\":\"question\",\"options\":{\"Yes\":34,\"No\":37},\"answer\":\"Yes\"},{\"question\":\" Great! If you set the wand on a table, does the wand drift off the screen?\",\"type\":\"question\",\"options\":{\"Yes\":35,\"No\":36},\"answer\":\"Yes\"},{\"question\":\" Sorry to hear that. Let's get you a new wand.\",\"type\":\"known_issue\",\"diagnosis\":\" Wand drifting\",\"customer_solution\":\" Put your wand on a table and leave it on the playground. It should stop drifting. If it doesn’t let us know!\",\"jira_key\":\"HP-31\",\"agent_solution\":\" Ask them to compare with baseline drift video. Replace if it does indeed drift more than it should.\"}],\"jira_key\":\"HP-31\",\"resolved\":null}",
   "resource": "/{proxy+}",
   "path": "/answers",
-  "httpMethod": "PUT",
+  "httpMethod": "POST",
   "isBase64Encoded": "true",
   "headers": {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
