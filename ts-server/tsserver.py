@@ -87,30 +87,35 @@ def createTicket(data):
     if "diagnosis" not in terminal:
         raise BaseException("data['answers'] object does not contain a well-formed terminal node")
     
-    # @TODO 
     # Associate with the right product in ZenDesk
-    # kit = getKitFromAnswers(data["answers"])
+    kit = getKitFromAnswers(data["answers"])
     
     # Create a Private Note Describing the Issue
     note = "This customer had an unresolved issue. They need your help!"
     note += "<h3>Summary</h3>"
     note += "<ul>"
+    note += "<li><b>Kit</b>: %s</li>" % (kit["name"])
     note += "<li><b>Diagnosis</b>: %s (Jira Issue %s)</li>" % (terminal["diagnosis"],"None Linked" if "jira_key" not in terminal else "<a href='https://kanocomputing.atlassian.net/browse/{}'>{}</a>".format(terminal["jira_key"],terminal["jira_key"]))
-    note += "<li><b>Agent Solution</b>: %s</li>" % (terminal["agent_solution"])
-    note += "<li><b>Solution Attempted By Customer (Unsuccessfully)</b>: %s</li>" % (terminal["customer_solution"])
+    if "agent_solution" in terminal:
+        note += "<li><b>Agent Solution</b>: %s</li>" % (terminal["agent_solution"])
+    if "customer_solution" in terminal:
+        note += "<li><b>Solution Attempted By Customer</b>: %s</li>" % (terminal["customer_solution"])
     note += "</ul>"
     note += "<h3>Customer's Answers</h3>"
     note += "<ul>"
     for answer in data["answers"]:
-        note += "<li>%s: %s</li>" %(answer["question"], "None Given" if "answer" not in answer else answer["answer"])
+        if "question" in answer and "answer" in answer:
+            note += "<li>%s: %s</li>" % (answer["question"], answer["answer"])
     note += "</ul>"
 
     # Create Ticket in Zendesk
+    username = data["email"].split("@")[0]
     ticket = Ticket(
-        requester = User(email=data["email"]),
+        requester = User(email=data["email"],name=username),
         subject = "Troubleshooter: " + terminal["diagnosis"],
         tags = ["troubleshooter"],
-        comment = Comment(html_body=note, public=False)
+        comment = Comment(html_body=note, public=False),
+        custom_fields = { "id": 360000204079, "value": kit["field"]} # product
     )
 
     audit = zenpy_client.tickets.create(ticket)
@@ -118,9 +123,6 @@ def createTicket(data):
     # @TODO
     # Link with Jira Issue 
     # something like this: zenpy_client.jira_links.create()
-    
-    # @TODO
-    # Specify the product
 
     return audit.ticket.id
 
